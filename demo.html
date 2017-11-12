@@ -1,0 +1,529 @@
+<html>
+<head>
+    <script src="https://www.gstatic.com/charts/loader.js"></script>
+    <script src="lfs.js"></script>
+    <script src="lfs_js.js"></script>
+    <script src="lfs_js_bd.js"></script>
+    <script>
+        google.charts.load('current', {'packages':['corechart']});
+        google.charts.setOnLoadCallback(init);
+
+        // config settings
+        var erase_cycles = 100
+        var block_size
+        var block_count
+        var static_file_count
+        var static_file_size
+        var dynamic_file_count
+        var dynamic_file_size
+        var sim_delay
+        var time
+
+        // bd and lfs
+        var lfs
+        var bd
+
+        // stats
+        var reads
+        var progs
+        var erases
+        var readops
+        var progops
+        var eraseops
+        var boots
+
+        // charts
+        var erasedata, eraseoptions, erasechart
+        var useddata, usedoptions, usedchart
+        var opdata, opoptions, opchart
+
+        // stats
+        var bootsstat
+        var readsstat
+        var progsstat
+        var erasesstat
+        var wearstat
+        var runtimestat
+
+        // inputs
+        var blocksizeinput
+        var storagesizeinput
+        var staticfilescountinput
+        var staticfilessizeinput
+        var dynamicfilescountinput
+        var dynamicfilessizeinput
+        var simspeedinput
+
+        // functions below
+        function init() {
+            // get DOM elements
+            bootsstat    = document.getElementById('boots')
+            readsstat    = document.getElementById('reads')
+            progsstat = document.getElementById('programs')
+            erasesstat   = document.getElementById('erases')
+            wearstat     = document.getElementById('wear')
+            runtimestat  = document.getElementById('runtime')
+
+            blocksizeinput         = document.getElementById('block-size')
+            storagesizeinput       = document.getElementById('storage-size')
+            staticfilescountinput  = document.getElementById('static-files-count')
+            staticfilessizeinput   = document.getElementById('static-files-size')
+            dynamicfilescountinput = document.getElementById('dynamic-files-count')
+            dynamicfilessizeinput  = document.getElementById('dynamic-files-size')
+            simspeedinput          = document.getElementById('sim-speed')
+
+            document.getElementById('apply').addEventListener('click', apply)
+            document.getElementById('reset').addEventListener('click', reset)
+            document.getElementById('simulate').addEventListener('click', simulate)
+
+            // setup googly charts
+            erasedata = new google.visualization.DataTable();
+            erasedata.addColumn('number', 'block');
+            erasedata.addColumn('number', 'wear');
+
+            eraseoptions = {
+                title: name,
+                colors: ['#dd8330'],
+                vAxis: {
+                    title: '% of wear',
+                    textPosition: 'none',
+                    viewWindowMode: 'explicit',
+                    viewWindow: {min: 0, max: 100},
+                    gridlines: {color: '#ccc', count: 4}
+                },
+                hAxis: {
+                    gridlines: {color: '#ccc'}
+                },
+                legend: {position: 'none'},
+                enableInteractivity: false,
+                chartArea: {left:25, top:0, width:700, height:100}
+            }
+
+            erasechart = new google.visualization.SteppedAreaChart(
+                document.getElementById('erase-chart'));
+
+            useddata = new google.visualization.DataTable();
+            useddata.addColumn('number', 'block');
+            useddata.addColumn('number', 'wear');
+
+            usedoptions = {
+                title: name,
+                colors: ['#2e4895'],
+                vAxis: {
+                    title: 'in use',
+                    textPosition: 'none',
+                    viewWindowMode: 'explicit',
+                    viewWindow: {min: 0, max: 1},
+                    gridlines: {color: '#ccc', count: 3}
+                },
+                hAxis: {
+                    gridlines: {color: '#ccc'}
+                },
+                legend: {position: 'none'},
+                enableInteractivity: false,
+                chartArea: {left:25, top:0, width:700, height:50}
+            }
+
+            usedchart = new google.visualization.SteppedAreaChart(
+                document.getElementById('used-chart'));
+
+            opdata = new google.visualization.DataTable();
+            opdata.addColumn('number', 'block');
+            opdata.addColumn('number', 'read');
+            opdata.addColumn('number', 'prog');
+            opdata.addColumn('number', 'erase');
+
+            opoptions = {
+                title: name,
+                colors: ['#25a93c', '#2e4895', '#dd8330'],
+                vAxis: {
+                    title: 'bd ops',
+                    textPosition: 'none',
+                    viewWindowMode: 'explicit',
+                    viewWindow: {min: 0, max: 1},
+                    gridlines: {color: '#ccc', count: 3}
+                },
+                hAxis: {
+                    title: 'storage block address',
+                    gridlines: {color: '#ccc'}
+                },
+                legend: {position: 'none'},
+                enableInteractivity: false,
+                chartArea: {left:25, top:0, width:700, height:50}
+            }
+
+            opchart = new google.visualization.SteppedAreaChart(
+                document.getElementById('op-chart'));
+
+            // cascade to reset and apply
+            reset()
+        }
+
+        var redrawinflight = false
+        function redraw() {
+            // run in animation frame to avoid melting
+            if (redrawinflight) {
+                return
+            }
+            redrawinflight = true
+
+            requestAnimationFrame(function() {
+                // update charts
+                for (var i = 0; i < block_count; i++) {
+                    erasedata.setCell(1+i, 1, erases[i] || 0);
+                }
+                erasechart.draw(erasedata, eraseoptions)
+
+                for (var i = 0; i < block_count; i++) {
+                    opdata.setCell(1+i, 1+0, readops[i]?1:0);
+                    opdata.setCell(1+i, 1+1, progops[i]?1:0);
+                    opdata.setCell(1+i, 1+2, eraseops[i]?1:0);
+                    reads += readops[i]?1:0
+                    progs += progops[i]?1:0
+                }
+                opchart.draw(opdata, opoptions)
+
+                for (var i = 0; i < block_count; i++) {
+                    useddata.setCell(1+i, 1, 0);
+                }
+                var err = lfs.mount()
+                if (err >= 0) {
+                    lfs.traverse(function(block) {
+                        if (block < block_count) {
+                            useddata.setCell(1+block, 1, 1);
+                        }
+                    })
+                    lfs.unmount()
+                }
+                usedchart.draw(useddata, usedoptions)
+
+                // update stats
+                bootsstat.innerHTML = boots
+                readsstat.innerHTML = reads
+                progsstat.innerHTML = progs
+
+                var e = 0
+                for (var i = 0; i < erases.length; i++) {
+                    e += erases[i]
+                }
+                erasesstat.innerHTML = e
+
+                var w = e / (block_count*erase_cycles)
+                wearstat.innerHTML = (w*100).toFixed(1) + "%"
+
+                // clear frame-limited stats
+                readops = []
+                progops = []
+                eraseops = []
+                redrawinflight = false;
+            })
+        }
+
+        function onread(block) {
+            readops[block] = (readops[block] || 0) + 1
+            redraw()
+        }
+
+        function onprog(block) {
+            if (erases[block] > erase_cycles) {
+                redraw()
+                return false
+            }
+
+            progops[block] = (progops[block] || 0) + 1
+            redraw()
+        }
+
+        function onerase(block) {
+            if (erases[block] > erase_cycles) {
+                redraw()
+                return false
+            }
+
+            erases[block] = (erases[block] || 0) + 1
+            eraseops[block] = (eraseops[block] || 0) + 1
+            redraw()
+        }
+
+        function apply() {
+            simulating = false
+
+            // get config settings
+            block_size = eval(blocksizeinput.value)
+            block_count = ~~(eval(storagesizeinput.value) / block_size)
+
+            static_file_count   = eval(staticfilescountinput.value)
+            static_file_size    = eval(staticfilessizeinput.value)
+            dynamic_file_count  = eval(dynamicfilescountinput.value)
+            dynamic_file_size   = eval(dynamicfilessizeinput.value)
+            sim_delay           = 1000/eval(simspeedinput.value)
+
+            var gridlines = block_count;
+            var multiplier = 1
+            while (gridlines > 64) {
+                gridlines /= 2
+                multiplier *= 2
+            }
+            var ticks = []
+            for (var i = 0; i <= gridlines; i++) {
+                ticks.push(i*multiplier)
+            }
+
+            // setup block devices and lfs
+            bd = new BD(1, 1, block_size, block_size*block_count)
+            bd.onread = onread
+            bd.onprog = onprog
+            bd.onerase = onerase
+
+            lfs = new LFS(bd)
+
+            // rejigger charts
+            if (erasedata.getNumberOfRows()-1 > block_count) {
+                erasedata.removeRows(1+block_count,
+                    erasedata.getNumberOfRows()-1-block_count)
+            }
+            for (var i = erasedata.getNumberOfRows(); i <= block_count; i++) {
+                erasedata.addRow([i, 0])
+            }
+            eraseoptions.hAxis.ticks = ticks
+
+            if (useddata.getNumberOfRows()-1 > block_count) {
+                useddata.removeRows(1+block_count,
+                    useddata.getNumberOfRows()-1-block_count)
+            }
+            for (var i = useddata.getNumberOfRows(); i <= block_count; i++) {
+                useddata.addRow([i, 0])
+            }
+            usedoptions.hAxis.ticks = ticks
+
+            if (opdata.getNumberOfRows()-1 > block_count) {
+                opdata.removeRows(1+block_count,
+                    opdata.getNumberOfRows()-1-block_count)
+            }
+            for (var i = opdata.getNumberOfRows(); i <= block_count; i++) {
+                opdata.addRow([i, 0, 0, 0])
+            }
+            opoptions.hAxis.ticks = ticks
+
+            // setup filesystem and storage
+            finit()
+            boots += 1
+
+            // trigger first draw
+            redraw()
+        }
+
+        function reset() {
+            simulating = false
+
+            // set things to zero
+            erases = []
+            reads = 0
+            progs = 0
+            readops = []
+            progops = []
+            eraseops = []
+            boots = 0
+
+            // pass on to apply
+            apply()
+
+            // trigger redraw
+            redraw()
+        }
+
+        var simulating = false
+        function simulate() {
+            if (simulating) {
+                simulating = false
+                return
+            }
+
+            function sim() {
+                if (!simulating) {
+                    return
+                }
+
+                var err = fstep()
+                if (err) {
+                    simulating = false
+                }
+
+                boots += 1
+
+                setTimeout(sim, sim_delay)
+            }
+
+            simulating = true
+            setTimeout(sim, sim_delay)
+        }
+
+        function finit() {
+            // format
+            var err = lfs.format()
+            if (err) {
+                console.log('format -> ', err)
+                return err
+            }
+
+            var err = lfs.mount()
+            if (err) {
+                console.log('mount -> ', err)
+                return err
+            }
+
+            // create static files
+            for (var i = 0; i < static_file_count; i++) {
+                var f = lfs.open('static' + i, ['wronly', 'creat']);
+                if (f < 0) {
+                    console.log('open -> ', err)
+                    return err
+                }
+
+                for (var j = 0; j < static_file_size; j += 16) {
+                    var err = f.write('0123456789abcdef')
+                    if (err < 0) {
+                        console.log('write -> ', err)
+                        return err
+                    }
+                }
+
+                var err = f.close()
+                if (err < 0) {
+                    console.log('close -> ', err)
+                    return err
+                }
+            }
+
+            // create dynamic files
+            for (var i = 0; i < dynamic_file_count; i++) {
+                var f = lfs.open('dynamic' + i, ['wronly', 'creat']);
+                if (f < 0) {
+                    console.log('open -> ', err)
+                    return err
+                }
+
+                for (var j = 0; j < dynamic_file_size; j += 16) {
+                    var err = f.write('0123456789abcdef')
+                    if (err < 0) {
+                        console.log('write -> ', err)
+                        return err
+                    }
+                }
+
+                var err = f.close()
+                if (err < 0) {
+                    console.log('close -> ', err)
+                    return err
+                }
+            }
+
+            var err = lfs.unmount()
+            if (err) {
+                console.log('unmount -> ', err)
+                return err
+            }
+
+            return 0
+        }
+
+        function fstep() {
+            // mount
+            var err = lfs.mount()
+            if (err) {
+                console.log('mount -> ', err)
+                return err
+            }
+
+            // rebuild dynamic files
+            for (var i = 0; i < dynamic_file_count; i++) {
+                var f = lfs.open('dynamic' + i, ['wronly']);
+                if (f < 0) {
+                    console.log('open -> ', err)
+                    return err
+                }
+
+                for (var j = 0; j < dynamic_file_size; j += 16) {
+                    var err = f.write('0123456789abcdef')
+                    if (err < 0) {
+                        console.log('write -> ', err)
+                        return err
+                    }
+                }
+
+                var err = f.close()
+                if (err < 0) {
+                    console.log('close -> ', err)
+                    return err
+                }
+            }
+
+            var err = lfs.unmount()
+            if (err) {
+                console.log('unmount -> ', err)
+                return err
+            }
+
+            return 0
+        }
+</script>
+<style>
+    body, table {
+        font-family: Arial;
+        font-size: 12px;
+    }
+</style>
+</head>
+<body>
+    <div>
+    <div id="littlefs-stats" style="float:left; width:125px; margin-top:-5px; margin-left:1px">
+        <b>littlefs</b><br>
+        boots: <span id="boots">0</span><br>
+        reads: <span id="reads">0</span><br>
+        programs: <span id="programs">0</span><br>
+        erases: <span id="erases">0</span><br>
+        wear: <span id="wear">0%</span><br>
+    </div>
+    <div id="charts" style="float:left">
+        <div id="erase-chart" style="width:725px; height:130px"></div>
+        <div id="used-chart" style="width:725px; height:80px"></div>
+        <div id="op-chart" style="width:725px; height:100px"></div>
+    </div>
+    <div style="clear:both"></div>
+    </div>
+    <div style="margin-top:15px">
+    <table style="float:left">
+      <tr>
+        <td><label>block size:</label></td>
+        <td><input id="block-size" type="text" size="6" value="4096"> bytes</td>
+      </tr>
+      <tr>
+        <td><label>storage size:</label></td>
+        <td><input id="storage-size" type="text" size="6" value="64*4096"> bytes</td>
+      </tr>
+    </table>
+    <table style="float:left; margin-left:15px">
+      <tr>
+        <td><label>static files:</label></td>
+        <td><input id="static-files-count" type="text" size="2" value="4"> x <input id="static-files-size" type="text" size="6" value="1024"> bytes</td>
+      </tr>
+      <tr>
+        <td><label>dynamic files:</label></td>
+        <td><input id="dynamic-files-count" type="text" size="2" value="4"> x <input id="dynamic-files-size" type="text" size="6" value="1024"> bytes</td>
+      </tr>
+    </table>
+    <table style="float:left; margin-left:15px">
+      <tr>
+        <td><label>simulation speed:</label></td>
+        <td><input id="sim-speed" type="text" size=6" value="60"> hz</td>
+      </tr>
+    </table>
+    <div style="float:left; margin-left:15px; transform:translateY(50%)">
+        <button id="apply">apply</button>
+        <button id="reset">reset</button>
+        <button id="simulate">simulate</button>
+    </div>
+    <div style="clear:both"></div>
+    </div>
+</body>
+</html>
