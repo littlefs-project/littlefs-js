@@ -163,13 +163,15 @@
                 document.getElementById('op-chart'));
 
             // setup Ace editor
-            initeditor = ace.edit("init-editor");
-            initeditor.setTheme("ace/theme/tomorrow_night_eighties");
-            initeditor.getSession().setMode("ace/mode/javascript");
+            initeditor = ace.edit("init-editor")
+            initeditor.setTheme("ace/theme/tomorrow_night_eighties")
+            initeditor.getSession().setMode("ace/mode/javascript")
+            initeditor.getSession().setUseWorker(false)
 
-            stepeditor = ace.edit("step-editor");
-            stepeditor.setTheme("ace/theme/tomorrow_night_eighties");
-            stepeditor.getSession().setMode("ace/mode/javascript");
+            stepeditor = ace.edit("step-editor")
+            stepeditor.setTheme("ace/theme/tomorrow_night_eighties")
+            stepeditor.getSession().setMode("ace/mode/javascript")
+            stepeditor.getSession().setUseWorker(false)
 
             // cascade to reset and apply
             reset()
@@ -509,81 +511,81 @@
         <div>Operations on initialization:</div>
         <div id="init-editor" style="width:850px; height:500px">
 // format and mount
-var err = lfs.format();
+var err = lfs.format()
 if (err) {
-    return err;
+    return err
 }
 
-var err = lfs.mount();
+var err = lfs.mount()
 if (err) {
-    return err;
+    return err
 }
 
 // create static files
 for (var i = 0; i < STATIC_FILE_COUNT; i++) {
-    var f = lfs.open('static' + i, ['wronly', 'creat']);
+    var f = lfs.open('static' + i, ['wronly', 'creat'])
     if (f < 0) {
-        return err;
+        return err
     }
 
     for (var j = 0; j < STATIC_FILE_SIZE; j += 16) {
-        var err = f.write('0123456789abcdef');
+        var err = f.write('0123456789abcdef')
             if (err < 0) {
-                return err;
+                return err
         }
     }
 
-    var err = f.close();
+    var err = f.close()
     if (err) {
-        return err;
+        return err
     }
 }
 
 // unmount
-var err = lfs.unmount();
+var err = lfs.unmount()
 if (err) {
-    return err;
+    return err
 }
 
-return 0;
+return 0
         </div>
     </div>
     <div style="margin-top:15px; margin-left:2px">
         Operations on boot:
         <div id="step-editor" style="width:850px; height:500px">
 // mount
-var err = lfs.mount();
+var err = lfs.mount()
 if (err) {
-    return err;
+    return err
 }
 
 // rebuild dynamic files
 for (var i = 0; i < DYNAMIC_FILE_COUNT; i++) {
-    var f = lfs.open('dynamic' + i, ['wronly', 'creat']);
+    var f = lfs.open('dynamic' + i, ['wronly', 'creat'])
     if (f < 0) {
         return err;
     }
 
     for (var j = 0; j < DYNAMIC_FILE_SIZE; j += 16) {
-        var err = f.write('0123456789abcdef');
+        var err = f.write('0123456789abcdef')
         if (err < 0) {
-            return err;
+            return err
         }
     }
 
-    var err = f.close();
+    var err = f.close()
     if (err < 0) {
-        return err;
+        return err
     }
 }
 
 // unmount
-var err = lfs.unmount();
+var err = lfs.unmount()
 if (err) {
-    return err;
+    return err
 }
 
-return 0;
+return 0
         </div>
     </div>
 </body>
