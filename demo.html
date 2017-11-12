@@ -428,6 +428,28 @@
 </style>
 </head>
 <body>
+    <div style="margin-top:30px; width:850px; margin-left:2px">
+    <b>littlefs simulator</b><br>
+    This page contains a fully functional simulation of the
+    <a href="https://github.com/geky/littlefs">little filesystem</a>.
+    littlefs is a small filesystem designed for resource-constrained
+    microcontrollers, which are usually paired with small flash chips with
+    limited erase-cycles. This simulation renders the wear on a simulated
+    flash chip to demonstrate the dynamic wear-leveling algorithm used in
+    littlefs. As flash blocks wear out, the littlefs is able to move files
+    onto unused blocks to extend the lifetime of the storage.<br><br>
+
+    This simulation is built using
+    <a href="https://github.com/kripken/emscripten">emscripten</a>,
+    a backend for the LLVM that can compile C to javscript. The result is a
+    fully functional javascript API for littlefs. The charts are provided by
+    <a href="https://developers.google.com/chart">Google Charts</a>
+    and editor provided by the
+    <a href="https://ace.c9.io">Ace code editor</a>.
+    The full implementation can be found
+    <a href="https://github.com/geky/littlefs-js">here</a>,
+    on GitHub where it is hosted.
+    </div>
     <div style="margin-top:30px">
     <div id="littlefs-stats" style="float:left; width:125px; margin-top:-5px; margin-left:2px">
         <b>littlefs</b><br>
