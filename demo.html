@@ -378,6 +378,11 @@
         }
 </script>
 <style>
+    body {
+        width: 900px;
+        margin-left: auto;
+        margin-right: auto;
+    }
     body, table {
         font-family: Arial;
         font-size: 12px;
@@ -385,8 +390,8 @@
 </style>
 </head>
 <body>
-    <div>
-    <div id="littlefs-stats" style="float:left; width:125px; margin-top:-5px; margin-left:1px">
+    <div style="margin-top:30px">
+    <div id="littlefs-stats" style="float:left; width:125px; margin-top:-5px; margin-left:2px">
         <b>littlefs</b><br>
         boots: <span id="boots">0</span><br>
         reads: <span id="reads">0</span><br>
@@ -435,9 +440,9 @@
     </div>
     <div style="clear:both"></div>
     </div>
-    <div style="margin-top:30px">
+    <div style="margin-top:30px; margin-left:2px">
         <div>Operations on initialization:</div>
-        <div id="init-editor" style="width:850px; height:500px; resize: vertical">
+        <div id="init-editor" style="width:850px; height:500px">
 // format and mount
 var err = lfs.format();
 if (err) {
@@ -478,9 +483,9 @@ if (err) {
 return 0;
         </div>
     </div>
-    <div style="margin-top:15px">
+    <div style="margin-top:15px; margin-left:2px">
         Operations on boot:
-        <div id="step-editor" style="width:850px; height:500px; resize: vertical">
+        <div id="step-editor" style="width:850px; height:500px">
 // mount
 var err = lfs.mount();
 if (err) {
