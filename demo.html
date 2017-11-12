@@ -163,13 +163,15 @@
                 document.getElementById('op-chart'));
 
             // setup Ace editor
-            initeditor = ace.edit("init-editor");
-            initeditor.setTheme("ace/theme/tomorrow_night_eighties");
-            initeditor.getSession().setMode("ace/mode/javascript");
+            initeditor = ace.edit("init-editor")
+            initeditor.setTheme("ace/theme/tomorrow_night_eighties")
+            initeditor.getSession().setMode("ace/mode/javascript")
+            initeditor.getSession().setUseWorker(false)
 
-            stepeditor = ace.edit("step-editor");
-            stepeditor.setTheme("ace/theme/tomorrow_night_eighties");
-            stepeditor.getSession().setMode("ace/mode/javascript");
+            stepeditor = ace.edit("step-editor")
+            stepeditor.setTheme("ace/theme/tomorrow_night_eighties")
+            stepeditor.getSession().setMode("ace/mode/javascript")
+            stepeditor.getSession().setUseWorker(false)
 
             // cascade to reset and apply
             reset()
@@ -428,6 +430,28 @@
 </style>
 </head>
 <body>
+    <div style="margin-top:30px; width:850px; margin-left:2px">
+    <b>littlefs simulator</b><br>
+    This page contains a fully functional simulation of the
+    <a href="https://github.com/geky/littlefs">little filesystem</a>.
+    littlefs is a small filesystem designed for resource-constrained
+    microcontrollers, which are usually paired with small flash chips with
+    limited erase-cycles. This simulation renders the wear on a simulated
+    flash chip to demonstrate the dynamic wear-leveling algorithm used in
+    littlefs. As flash blocks wear out, the littlefs is able to move files
+    onto unused blocks to extend the lifetime of the storage.<br><br>
+
+    This simulation is built using
+    <a href="https://github.com/kripken/emscripten">emscripten</a>,
+    a backend for the LLVM that can compile C to javscript. The result is a
+    fully functional javascript API for littlefs. The charts are provided by
+    <a href="https://developers.google.com/chart">Google Charts</a>
+    and editor provided by the
+    <a href="https://ace.c9.io">Ace code editor</a>.
+    The full implementation can be found
+    <a href="https://github.com/geky/littlefs-js">here</a>,
+    on GitHub where it is hosted.
+    </div>
     <div style="margin-top:30px">
     <div id="littlefs-stats" style="float:left; width:125px; margin-top:-5px; margin-left:2px">
         <b>littlefs</b><br>
@@ -487,81 +511,81 @@
         <div>Operations on initialization:</div>
         <div id="init-editor" style="width:850px; height:500px">
 // format and mount
-var err = lfs.format();
+var err = lfs.format()
 if (err) {
-    return err;
+    return err
 }
 
-var err = lfs.mount();
+var err = lfs.mount()
 if (err) {
-    return err;
+    return err
 }
 
 // create static files
 for (var i = 0; i < STATIC_FILE_COUNT; i++) {
-    var f = lfs.open('static' + i, ['wronly', 'creat']);
+    var f = lfs.open('static' + i, ['wronly', 'creat'])
     if (f < 0) {
-        return err;
+        return err
     }
 
     for (var j = 0; j < STATIC_FILE_SIZE; j += 16) {
-        var err = f.write('0123456789abcdef');
+        var err = f.write('0123456789abcdef')
             if (err < 0) {
-                return err;
+                return err
         }
     }
 
-    var err = f.close();
+    var err = f.close()
     if (err) {
-        return err;
+        return err
     }
 }
 
 // unmount
-var err = lfs.unmount();
+var err = lfs.unmount()
 if (err) {
-    return err;
+    return err
 }
 
-return 0;
+return 0
         </div>
     </div>
     <div style="margin-top:15px; margin-left:2px">
         Operations on boot:
         <div id="step-editor" style="width:850px; height:500px">
 // mount
-var err = lfs.mount();
+var err = lfs.mount()
 if (err) {
-    return err;
+    return err
 }
 
 // rebuild dynamic files
 for (var i = 0; i < DYNAMIC_FILE_COUNT; i++) {
-    var f = lfs.open('dynamic' + i, ['wronly', 'creat']);
+    var f = lfs.open('dynamic' + i, ['wronly', 'creat'])
     if (f < 0) {
         return err;
     }
 
     for (var j = 0; j < DYNAMIC_FILE_SIZE; j += 16) {
-        var err = f.write('0123456789abcdef');
+        var err = f.write('0123456789abcdef')
         if (err < 0) {
-            return err;
+            return err
         }
     }
 
-    var err = f.close();
+    var err = f.close()
     if (err < 0) {
-        return err;
+        return err
     }
 }
 
 // unmount
-var err = lfs.unmount();
+var err = lfs.unmount()
 if (err) {
-    return err;
+    return err
 }
 
-return 0;
+return 0
         </div>
     </div>
 </body>
