@@ -12,7 +12,7 @@
         // config settings
         // capitalized so they can be thought of as "constants" in user scripts
         // but what are constants really
-        var ERASE_CYCLES = 100
+        var ERASE_CYCLES
         var BLOCK_SIZE
         var BLOCK_COUNT
         var STATIC_FILE_COUNT
@@ -53,6 +53,7 @@
         var staticfilessizeinput
         var dynamicfilescountinput
         var dynamicfilessizeinput
+        var erasecyclesinput
         var simspeedinput
 
         // editors
@@ -74,10 +75,12 @@
             staticfilessizeinput   = document.getElementById('static-files-size')
             dynamicfilescountinput = document.getElementById('dynamic-files-count')
             dynamicfilessizeinput  = document.getElementById('dynamic-files-size')
+            erasecyclesinput       = document.getElementById('erase-cycles')
             simspeedinput          = document.getElementById('sim-speed')
 
             document.getElementById('apply').addEventListener('click', apply)
             document.getElementById('reset').addEventListener('click', reset)
+            document.getElementById('step').addEventListener('click', step)
             document.getElementById('simulate').addEventListener('click', simulate)
 
             // setup googly charts
@@ -173,14 +176,24 @@
         }
 
         var redrawinflight = false
+        var allowpending = false
+        var pendingredraw = false
         function redraw() {
             // run in animation frame to avoid melting
             if (redrawinflight) {
+                if (allowpending) {
+                    pendingredraw = true
+                }
                 return
             }
+
             redrawinflight = true
+            allowpending = false
+            pendingredraw = false
 
             requestAnimationFrame(function() {
+                var start = performance.now()
+
                 // update charts
                 for (var i = 0; i < BLOCK_COUNT; i++) {
                     erasedata.setCell(1+i, 1, erases[i] || 0);
@@ -228,7 +241,16 @@
                 readops = []
                 progops = []
                 eraseops = []
-                redrawinflight = false;
+
+                // give us some breathing room
+                var time = performance.now() - start
+                allowpending = true
+                setTimeout(function() {
+                    redrawinflight = false
+                    if (pendingredraw) {
+                        redraw()
+                    }
+                }, time)
             })
         }
 
@@ -272,6 +294,7 @@
             STATIC_FILE_SIZE    = eval(staticfilessizeinput.value)
             DYNAMIC_FILE_COUNT  = eval(dynamicfilescountinput.value)
             DYNAMIC_FILE_SIZE   = eval(dynamicfilessizeinput.value)
+            ERASE_CYCLES        = eval(erasecyclesinput.value)
             SIM_DELAY           = 1000/eval(simspeedinput.value)
 
             var gridlines = BLOCK_COUNT;
@@ -302,6 +325,7 @@
                 erasedata.addRow([i, 0])
             }
             eraseoptions.hAxis.ticks = ticks
+            eraseoptions.vAxis.viewWindow.max = ERASE_CYCLES
 
             if (useddata.getNumberOfRows()-1 > BLOCK_COUNT) {
                 useddata.removeRows(1+BLOCK_COUNT,
@@ -326,8 +350,11 @@
             fstep = Function(stepeditor.getValue())
 
             // setup filesystem and storage
-            finit()
+            var err = finit()
             boots += 1
+            if (err) {
+                console.log('error:', err)
+            }
 
             // trigger first draw
             redraw()
@@ -352,6 +379,16 @@
             redraw()
         }
 
+        function step() {
+            simulating = false
+
+            var err = fstep()
+            boots += 1
+            if (err < 0) {
+                console.log('error:', err)
+            }
+        }
+
         var simulating = false
         function simulate() {
             if (simulating) {
@@ -367,6 +404,7 @@
                 var err = fstep()
                 boots += 1
                 if (err < 0) {
+                    console.log('error:', err)
                     simulating = false
                 }
 
@@ -410,24 +448,28 @@
     <table style="float:left">
       <tr>
         <td><label>block size:</label></td>
-        <td><input id="block-size" type="text" size="6" value="4096"> bytes</td>
+        <td><input id="block-size" type="text" size="6" value="512"> bytes</td>
       </tr>
       <tr>
         <td><label>storage size:</label></td>
-        <td><input id="storage-size" type="text" size="6" value="64*4096"> bytes</td>
+        <td><input id="storage-size" type="text" size="6" value="64*512"> bytes</td>
       </tr>
     </table>
     <table style="float:left; margin-left:15px">
       <tr>
         <td><label>static files:</label></td>
-        <td><input id="static-files-count" type="text" size="2" value="4"> x <input id="static-files-size" type="text" size="6" value="1024"> bytes</td>
+        <td><input id="static-files-count" type="text" size="2" value="3"> x <input id="static-files-size" type="text" size="6" value="512"> bytes</td>
       </tr>
       <tr>
         <td><label>dynamic files:</label></td>
-        <td><input id="dynamic-files-count" type="text" size="2" value="4"> x <input id="dynamic-files-size" type="text" size="6" value="1024"> bytes</td>
+        <td><input id="dynamic-files-count" type="text" size="2" value="3"> x <input id="dynamic-files-size" type="text" size="6" value="512"> bytes</td>
       </tr>
     </table>
     <table style="float:left; margin-left:15px">
+      <tr>
+        <td><label>erase cycles:</label></td>
+        <td><input id="erase-cycles" type="text" size=6" value="100"></td>
+      </tr>
       <tr>
         <td><label>simulation speed:</label></td>
         <td><input id="sim-speed" type="text" size=6" value="60"> hz</td>
@@ -436,6 +478,7 @@
     <div style="float:left; margin-left:15px; transform:translateY(50%)">
         <button id="apply">apply</button>
         <button id="reset">reset</button>
+        <button id="step">step</button>
         <button id="simulate">simulate</button>
     </div>
     <div style="clear:both"></div>
