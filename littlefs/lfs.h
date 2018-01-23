@@ -42,16 +42,17 @@ typedef uint32_t lfs_block_t;
 // Possible error codes, these are negative to allow
 // valid positive return values
 enum lfs_error {
-    LFS_ERR_OK      = 0,    // No error
-    LFS_ERR_IO      = -5,   // Error during device operation
-    LFS_ERR_CORRUPT = -52,  // Corrupted
-    LFS_ERR_NOENT   = -2,   // No directory entry
-    LFS_ERR_EXISTS  = -17,  // Entry already exists
-    LFS_ERR_NOTDIR  = -20,  // Entry is not a dir
-    LFS_ERR_ISDIR   = -21,  // Entry is a dir
-    LFS_ERR_INVAL   = -22,  // Invalid parameter
-    LFS_ERR_NOSPC   = -28,  // No space left on device
-    LFS_ERR_NOMEM   = -12,  // No more memory available
+    LFS_ERR_OK       = 0,    // No error
+    LFS_ERR_IO       = -5,   // Error during device operation
+    LFS_ERR_CORRUPT  = -52,  // Corrupted
+    LFS_ERR_NOENT    = -2,   // No directory entry
+    LFS_ERR_EXIST    = -17,  // Entry already exists
+    LFS_ERR_NOTDIR   = -20,  // Entry is not a dir
+    LFS_ERR_ISDIR    = -21,  // Entry is a dir
+    LFS_ERR_NOTEMPTY = -39,  // Dir is not empty
+    LFS_ERR_INVAL    = -22,  // Invalid parameter
+    LFS_ERR_NOSPC    = -28,  // No space left on device
+    LFS_ERR_NOMEM    = -12,  // No more memory available
 };
 
 // File types
@@ -76,6 +77,7 @@ enum lfs_open_flags {
     LFS_F_DIRTY   = 0x10000, // File does not match storage
     LFS_F_WRITING = 0x20000, // File has been written since last flush
     LFS_F_READING = 0x40000, // File has been read since last flush
+    LFS_F_ERRED   = 0x80000, // An error occured during write
 };
 
 // File seek flags
@@ -99,14 +101,14 @@ struct lfs_config {
 
     // Program a region in a block. The block must have previously
     // been erased. Negative error codes are propogated to the user.
-    // The prog function must return LFS_ERR_CORRUPT if the block should
-    // be considered bad.
+    // May return LFS_ERR_CORRUPT if the block should be considered bad.
     int (*prog)(const struct lfs_config *c, lfs_block_t block,
             lfs_off_t off, const void *buffer, lfs_size_t size);
 
     // Erase a block. A block must be erased before being programmed.
     // The state of an erased block is undefined. Negative error codes
     // are propogated to the user.
+    // May return LFS_ERR_CORRUPT if the block should be considered bad.
     int (*erase)(const struct lfs_config *c, lfs_block_t block);
 
     // Sync the state of the underlying block device. Negative error codes
@@ -121,11 +123,13 @@ struct lfs_config {
     // Minimum size of a block program. This determines the size of program
     // buffers. This may be larger than the physical program size to improve
     // performance by caching more of the block device.
+    // Must be a multiple of the read size.
     lfs_size_t prog_size;
 
     // Size of an erasable block. This does not impact ram consumption and
     // may be larger than the physical erase size. However, this should be
-    // kept small as each file currently takes up an entire block .
+    // kept small as each file currently takes up an entire block.
+    // Must be a multiple of the program size.
     lfs_size_t block_size;
 
     // Number of erasable blocks on the device.
@@ -207,6 +211,7 @@ typedef struct lfs_file {
 } lfs_file_t;
 
 typedef struct lfs_dir {
+    struct lfs_dir *next;
     lfs_block_t pair[2];
     lfs_off_t off;
 
@@ -249,6 +254,7 @@ typedef struct lfs {
 
     lfs_block_t root[2];
     lfs_file_t *files;
+    lfs_dir_t *dirs;
 
     lfs_cache_t rcache;
     lfs_cache_t pcache;
@@ -371,6 +377,11 @@ EMSCRIPTEN_KEEPALIVE
 lfs_soff_t lfs_file_seek(lfs_t *lfs, lfs_file_t *file,
         lfs_soff_t off, int whence);
 
+// Truncates the size of the file to the specified size
+//
+// Returns a negative error code on failure.
+int lfs_file_truncate(lfs_t *lfs, lfs_file_t *file, lfs_off_t size);
+
 // Return the position of the file
 //
 // Equivalent to lfs_file_seek(lfs, file, 0, LFS_SEEK_CUR)
@@ -468,9 +479,6 @@ int lfs_traverse(lfs_t *lfs, int (*cb)(void*, lfs_block_t), void *data);
 // Returns a negative error code on failure.
 EMSCRIPTEN_KEEPALIVE
 int lfs_deorphan(lfs_t *lfs);
-
-// TODO doc
-int lfs_deduplicate(lfs_t *lfs);
 
 
 #endif
