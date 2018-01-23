@@ -133,6 +133,7 @@ function LFS(bd, read_size, prog_size, block_size, lookahead) {
     this._lfs_file_read     = Module.cwrap('lfs_file_read', n, [n, n, n, n])
     this._lfs_file_write    = Module.cwrap('lfs_file_write', n, [n, n, n, n])
     this._lfs_file_seek     = Module.cwrap('lfs_file_seek', n, [n, n, n, n])
+    this._lfs_file_truncate = Module.cwrap('lfs_file_seek', n, [n, n, n])
     this._lfs_file_tell     = Module.cwrap('lfs_file_tell', n, [n, n])
     this._lfs_file_rewind   = Module.cwrap('lfs_file_rewind', n, [n, n])
     this._lfs_file_size     = Module.cwrap('lfs_file_size', n, [n, n])
@@ -316,6 +317,10 @@ LFS.File.prototype.seek = function(off, whence) {
     console.assert(this.lfs.whences[whence || 'set'])
     return this.lfs._lfs_file_seek(this.lfs._lfs, this._file,
             off, this.lfs.whences[whence || 'set'])
+}
+
+LFS.File.prototype.truncate = function(size) {
+    return this.lfs._lfs_file_truncate(this.lfs._lfs, this._file, size)
 }
 
 LFS.File.prototype.tell = function() {
